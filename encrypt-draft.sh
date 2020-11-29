@@ -63,7 +63,7 @@ for entry in $(ls $(pwd -P)/draft/$(date +%F).txt); do
 done;
 }
 
-randpw(){ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-64};echo;}
+randpw(){ < /dev/urandom tr -s -dc [:graph:] [:alnum:]| head -c${1:-64};echo;}
 
 newKey(){
 	secret=$(randpw)
