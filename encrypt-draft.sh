@@ -72,9 +72,9 @@ newKey(){
 	echo "Who is recipient of the key?"
 	read recipient
 	if [ $keylocation == "stdout" ]; then
-		echo $secret | gpg2 -ea -r $recipient -
+		echo $secret | gpg2 -ea -R $recipient -
 	else
-		echo $secret | gpg2 -ea --batch -o $keylocation -r $recipient -
+		echo $secret | gpg2 -ea --batch -o $keylocation -R $recipient -
 	fi
 }
 
