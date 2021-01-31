@@ -9,20 +9,37 @@ USAGE="
 		      --entry       : Specify the file entry to decrypt using the specified keyfile.
 		      --keyfile     : Supply a key file containing the user generated password
                                       for the symeteric encryption of given journal entry.
+                      --key-from-url: Supply a URL containing encrypted symetric key for decryption
+                      --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
+                                      Enabling this option allows use of tor hidden service urls.
     encrypt   - Encrypts a given file using decrypted symetric key specified.
                       Optional flags:
 		      --type	    : Specify the type of journal entry to encrypt (new or archive)
 				      The default assumes type 'new'
                       --config_path : Supply a path to the files root path if not already in current path
                       --keyfile     : Supply a key file containing the user generated password
-                                      for the symeteric encryption of given journal entry. 
+                                      for the symeteric encryption of given journal entry.
 				      Default assumes 'key.asc' in current path
                       --key-from-url: Supply a URL containing encrypted symetric key for decryption
+                      --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
+                                      Enabling this option allows use of tor hidden service urls.
+    backup    - Creates an encrypted backup archive
+                      Optional flags:
+                      --config_path : Supply a path to the journal root path if not already in current path
+		      --backup_path : Supply a path of where to write the encrypted tar archive to
+		      		      Default assumes 'HOME/jbackup' which should be an external mounted device
+                      --keyfile     : Supply a key file containing the password for the symeteric encryption
+		      		      of the backup archive to be created.
+                                      Default assumes 'backup_key.asc' in current path
+                      --key-from-url: Supply a URL containing encrypted symetric key for archive encryption
+                      --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
+                                      Enabling this option allows use of tor hidden service urls.
+
 -- Misc options --
-    version    - Shows the agent version bundled with the installer
+    version    - Shows the script version
     newkey     - Generates a new symetric key for a given recipient
     newdraft   - Create a new draft file for the current day.
-                 "
+"
 
 newDraft(){
 	safety_check
@@ -41,9 +58,11 @@ newDraft(){
 
 safety_check(){
 debug_msg "${CURRENT_FP}"
+debug_msg "${BACKUP_FP}"
 debug_msg "Decrypted Password: $passwd"
 debug_msg "Base Path: ${BASE}"
-debug_msg "Current Path ${JOURNAL_BASE}"
+debug_msg "Current Path: ${JOURNAL_BASE}"
+debug_msg "Current Backup Path: ${BACKUP_FP}"
 
 ## Check to see if ${CURRENT_FP} is set, if not set set ${BASE} to current path
 if [[ -z ${CURRENT_FP+x} ]]; then
@@ -53,12 +72,21 @@ else
 	BASE=${CURRENT_FP}
 fi
 
+## Check to see if ${BACKUP_FP} is set, if not set ${BACKUP} to /backup
+if [[ -z ${BACKUP_FP+x} ]]; then
+	BACKUP="${HOME}/jbackup"
+	[[ ! -z ${BACKUP} ]] || error_msg "Safety Check: Could not set BACKUP path"
+else
+	BACKUP=${BACKUP_FP}
+fi
+
 JOURNAL_BASE="${BASE}/$(date +%Y)/$(date +%B)"
 efile="${JOURNAL_BASE}/$(date +%b_%d).asc"
 draftfile="${BASE}/draft/$(date +%F).txt"
 
 debug_msg "New Base Path: ${BASE}"
-debug_msg "New Current Path ${JOURNAL_BASE}"
+debug_msg "New Current Path: ${JOURNAL_BASE}"
+debug_msg "New Backup Path: ${BACKUP}"
 
 if [[ ! -d "${JOURNAL_BASE}" || ! -d "${BASE}/draft/" ]]; then
 	info_msg "Creating paths.."
@@ -75,6 +103,7 @@ elif [ -f $efile ]; then
 	fi
 else
 	info_msg "Safey Checks passed, continuing..."
+	lastBackup
 	return 0
 fi
 }
@@ -129,7 +158,7 @@ encryptOld() {
 		Day=`date -d "$date" +%b_%d`
 		efile="${BASE}/$Year/$Month/$Day.asc"
 		if [[ ! -d ${BASE}/$Year/$Month ]]; then
-			mkidir -p ${BASE}/$Year/$Month || fail_out "Could not create path..."
+			mkdir -p ${BASE}/$Year/$Month || fail_out "Could not create path..."
 		fi
 		doEncrypt
 	done
@@ -139,10 +168,11 @@ encryptOld() {
 
 doEncrypt(){
 	info_msg "Encrypting Entry..."
-	$(cat $draftfile | fold -s -w 72 | gpg2 -ac --batch --pinentry-mode loopback --passphrase $passwd -o $efile) 
+	$(cat $draftfile | fold -s -w 72 | gpg2 -ac --batch --pinentry-mode loopback --passphrase $passwd -o $efile)
         info_msg "Journal entry successfully encrypted... "
+	## Possible at later time to add date/time check to ensure that the created file is actualy a new file, not old.
 	if [[ -f $efile && -s $efile ]]; then
-		shredSource
+		shredSource || warn_message "Unable to complete shred action"
 	elif [[ -f $efile && ! -s $file ]]; then
 		fail_out "An error occured, encrypted journal is empty... "
 	else
@@ -181,7 +211,7 @@ encrypt(){
 		encryptDraft
 	elif [[ ! -z $TYPE && $TYPE == "archive" ]]; then
 		encryptOld
-	else 
+	else
 		info_msg "No type specififed, assuming new"
 		encryptDraft
 	fi
@@ -194,11 +224,46 @@ decrypt(){
 	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "$passwd" ${ENTRY})\n"
 }
 
+backup(){
+	checkKey
+	warn_msg "Unit Tests for BACKUP Incomplete"
+	safety_check
+	local DIR="${BASE}/draft/"
+	if [ ! "$(ls -A $DIR)" ]; then
+		info_msg "Backup of ${BASE} to ${BACKUP} in progress"
+		#tar -cvz ${BASE} | gpg2 -b -c --batch --pinentry-mode loopback --passphrase $passwd -o ${BACKUP}/backup.tgz.gpg
+	else
+		warn_msg "Take action $DIR is not Empty"
+	fi
+}
+lastBackup(){
+	local newest=$(find ${BACKUP} -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
+	if [[ ! -z ${newest} ]]; then
+	local last=$(date -r ${newest} +%s)
+	local cur=$(date +%s)
+	local sub=$((${cur}-${last}))
+	local nxt=$((${cur}+1209600))
+		if [[ ${sub} -ge 1209600 ]]; then
+			warn_msg "Last backup is older than TWO WEEKS! Run backup ASAP!!"
+		else
+			info_msg "Next backup should not exceed $(date -d @${nxt})"
+		fi
+	else
+		fail_out "Could not find latest backup, is ${BACKUP} mounted?"
+	fi
+}
+
 checkKey(){
 if [[ -n ${KEYFILE} ]]; then
 	passwd=`gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]'`
 elif [[ -n ${KEY_URL} ]]; then
-	passwd=`curl -s ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+	if [[ -n ${PROXY} && ${PROXY,,} == 'true' || ${PROXY,,} == 'yes' ]]; then
+		debug_msg "URL: ${KEY_URL}"
+		debug_msg "Proxy enabled: ${PROXY}"
+		passwd=`curl -s --socks5-hostname '127.0.0.1:9050' ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+	else
+		passwd=`curl -s ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+	fi
 else
 	fail_out "Key option is required, specify key."
 fi
@@ -287,7 +352,7 @@ handle_args(){
             TYPE="$1"
           ;;
             -t=*|--type=*)
-            TYPE="${key#*=}"
+            TYPE="${_key#*=}"
           ;;
           -k|--keyfile)
             shift
@@ -307,15 +372,29 @@ handle_args(){
             shift
 	    CURRENT_FP="$1"
           ;;
-            -c=*|--config_path=*)
-	    CURRENT_FP="${key#*=}"
+          -c=*|--config_path=*)
+	    CURRENT_FP="${_key#*=}"
           ;;
+          -b|--backup_path)
+            shift
+	    BACKUP_FP="$1"
+	  ;;
+          -b|--backup_path)
+            BACKUP_FP="${_key#*=}"
+	  ;;
 	  -e|--entry)
             shift
             ENTRY="$1"
           ;;
-            -e=*|--entry=*)
-            ENTRY="${key#*=}"
+          -e=*|--entry=*)
+            ENTRY="${_key#*=}"
+          ;;
+	  -p|--proxy)
+            shift
+            PROXY="$1"
+          ;;
+          -p=*|--proxy=*)
+            PROXY="${_key#*=}"
           ;;
           *)
             # Error on unknown options
@@ -345,6 +424,10 @@ case "$1" in
 	handle_args "$@"
         decrypt
         ;;
+    backup)
+	handle_args "$@"
+	backup
+	;;
     #: misc opts
     version)
         version
