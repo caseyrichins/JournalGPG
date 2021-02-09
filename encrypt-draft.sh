@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DEBUG=false
-
+SYMMETRIC_OPTIONS="--s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011212"
 USAGE="
 -- Encryption options --
     decrypt   - Decrypt the given file using the specified keyfile and journal entry to stdout.
@@ -41,6 +41,36 @@ USAGE="
     newdraft   - Create a new draft file for the current day.
 "
 
+#: Shows the version of the script
+version(){
+	printf "\nThis is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>
+\n"
+	info_msg "Version: 0.1.0-alpha"
+}
+
 newDraft(){
 	safety_check
 	if [ -f $draftfile ];
@@ -59,7 +89,7 @@ newDraft(){
 safety_check(){
 debug_msg "${CURRENT_FP}"
 debug_msg "${BACKUP_FP}"
-debug_msg "Decrypted Password: $passwd"
+debug_msg "Decrypted Password: ${SECRET}"
 debug_msg "Base Path: ${BASE}"
 debug_msg "Current Path: ${JOURNAL_BASE}"
 debug_msg "Current Backup Path: ${BACKUP_FP}"
@@ -168,7 +198,7 @@ encryptOld() {
 
 doEncrypt(){
 	info_msg "Encrypting Entry..."
-	$(cat $draftfile | fold -s -w 72 | gpg2 -ac --batch --pinentry-mode loopback --passphrase $passwd -o $efile)
+	$(cat $draftfile | fold -s -w 72 | gpg2 -ac --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o $efile)
         info_msg "Journal entry successfully encrypted... "
 	## Possible at later time to add date/time check to ensure that the created file is actualy a new file, not old.
 	if [[ -f $efile && -s $efile ]]; then
@@ -220,8 +250,8 @@ encrypt(){
 decrypt(){
 	checkKey
 	debug_msg "File Entry: ${ENTRY}"
-	debug_msg "Password: $passwd"
-	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "$passwd" ${ENTRY})\n"
+	debug_msg "Password: ${SECRET}"
+	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" ${ENTRY})\n"
 }
 
 backup(){
@@ -229,11 +259,31 @@ backup(){
 	warn_msg "Unit Tests for BACKUP Incomplete"
 	safety_check
 	local DIR="${BASE}/draft/"
+	local DSIZE=$(du -sh ${BASE})
 	if [ ! "$(ls -A $DIR)" ]; then
 		info_msg "Backup of ${BASE} to ${BACKUP} in progress"
-		#tar -cvz ${BASE} | gpg2 -b -c --batch --pinentry-mode loopback --passphrase $passwd -o ${BACKUP}/backup.tgz.gpg
+		#tar -cvz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
+		local DVD_DEFAULT='n'
+		read -e -p "Backup of ${BASE} complete, would you like to create an offline encrypted backup on CD/DVD? (n/Y)" DVD
+		local DVD=${DVD:-${DVD_DEFAULT}}
+		local DVD=${DVD,,}
+		debug_msg "Burn DVD: ${DVD}"
+		if [[ ${DVD} == 'y' || ${DVD} == 'yes' ]]; then
+			checkPkgs
+			info_msg "Please insert a CD or DVD in drive before prceeding. Press enter to continue"
+			info_msg "Estimated Size is ${DSIZE}"
+			#wait here for key press of DVD.
+			info_msg "Writing data in ${BASE} to disk, please wait"
+			#TMPDIR=$(mktemp -d)
+			#genisoimage -quiet -r Documents/ | aespipe -e aes256 -H sha512 > $TMPDIR/documents.iso
+			#wodim dev=/dev/dvdrw documents.iso
+		else
+			info_msg "Backup complete, have a nice day!"
+			exit 0
+		fi
+		
 	else
-		warn_msg "Take action $DIR is not Empty"
+		fail_out "Take action $DIR is not Empty"
 	fi
 }
 lastBackup(){
@@ -255,18 +305,28 @@ lastBackup(){
 
 checkKey(){
 if [[ -n ${KEYFILE} ]]; then
-	passwd=`gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]'`
+	SECRET=`gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]'`
 elif [[ -n ${KEY_URL} ]]; then
 	if [[ -n ${PROXY} && ${PROXY,,} == 'true' || ${PROXY,,} == 'yes' ]]; then
 		debug_msg "URL: ${KEY_URL}"
 		debug_msg "Proxy enabled: ${PROXY}"
-		passwd=`curl -s --socks5-hostname '127.0.0.1:9050' ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=`curl -s --socks5-hostname '127.0.0.1:9050' ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
 	else
-		passwd=`curl -s ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=`curl -s ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
 	fi
 else
 	fail_out "Key option is required, specify key."
 fi
+}
+checkPkgs(){
+	# Check that packages for dvd burning of encrypted iso are installed
+	local SUPPORTED=$(dpkg -s aespipe wodim genisoimage &> /dev/null)$?
+	if [[ ! ${SUPPORTED} -eq 0 ]]; then
+		debug_msg "Supported Exit status: ${SUPPORTED}"
+		fail_out "Action not supportted, please install aespipe, genisoimage and wodim packages for your distribution"
+	else
+		info_msg "Supported packages installed, continuing backup..."
+	fi
 }
 
 #: Mimic codes
@@ -286,7 +346,7 @@ DEBUG_SIG="[${BLUE}DEBUG${NC}]\n"
 WARN_SIG="[${WARN}WARNING${NC}]\n"
 #: Helper functions
 usage() {
-    echo "Usage: $0 <command>"
+    echo "Usage: $0 <command> <options>"
     echo "${USAGE}"
     exit 1
 }
