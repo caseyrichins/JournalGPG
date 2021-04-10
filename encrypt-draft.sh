@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DEBUG=false
-SYMMETRIC_OPTIONS="--s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011212"
+SYMMETRIC_OPTIONS="--no-symkey-cache --s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011700"
 USAGE="
 -- Encryption options --
     decrypt   - Decrypt the given file using the specified keyfile and journal entry to stdout.
@@ -67,6 +67,12 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 For more information, please refer to <http://unlicense.org/>
+
+GnuPG is copyrighted by The GnuPG Project and is licenced under the
+Creative Commons Attribution-ShareAlike 3.0 Unported License. While refrenced
+in the code of the script, this script in no way modifies the terms of the
+GnuPG licence or its libraries.
+
 \n"
 	info_msg "Version: 0.1.0-alpha"
 }
@@ -251,6 +257,7 @@ decrypt(){
 	checkKey
 	debug_msg "File Entry: ${ENTRY}"
 	debug_msg "Password: ${SECRET}"
+	# We print the entry with printf to stdout instead of decrypting to file for security of the entry
 	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" ${ENTRY})\n"
 }
 
@@ -277,6 +284,7 @@ backup(){
 			#TMPDIR=$(mktemp -d)
 			#genisoimage -quiet -r Documents/ | aespipe -e aes256 -H sha512 > $TMPDIR/documents.iso
 			#wodim dev=/dev/dvdrw documents.iso
+			#shred -ufvz -n 35 $TMPDIR/documents.iso
 		else
 			info_msg "Backup complete, have a nice day!"
 			exit 0
@@ -302,8 +310,15 @@ lastBackup(){
 		fail_out "Could not find latest backup, is ${BACKUP} mounted?"
 	fi
 }
-
+is_secret(){
+if [[ -n ${TOPSECRET} && ${TOPSECRET,,} == 'true' && -z ${KEY_URL} ]]; then
+	read -e -p "Please type the URL you'd like to keep secret: " URL
+        KEY_URL=$URL
+	debug_msg "Secret URL: ${KEY_URL}"
+fi
+}
 checkKey(){
+is_secret
 if [[ -n ${KEYFILE} ]]; then
 	SECRET=`gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]'`
 elif [[ -n ${KEY_URL} ]]; then
@@ -321,6 +336,7 @@ fi
 checkPkgs(){
 	# Check that packages for dvd burning of encrypted iso are installed
 	local SUPPORTED=$(dpkg -s aespipe wodim genisoimage &> /dev/null)$?
+	#local SUPPORTED=$(yum -q aespipe wodim genisoimage &> /dev/null)$? ## Detection for Redhat Family
 	if [[ ! ${SUPPORTED} -eq 0 ]]; then
 		debug_msg "Supported Exit status: ${SUPPORTED}"
 		fail_out "Action not supportted, please install aespipe, genisoimage and wodim packages for your distribution"
@@ -451,11 +467,18 @@ handle_args(){
           ;;
 	  -p|--proxy)
             shift
-            PROXY="$1"
+            PROXY="true"
           ;;
           -p=*|--proxy=*)
             PROXY="${_key#*=}"
           ;;
+          -s|--secret)
+	    shift
+	    TOPSECRET="true"
+	  ;;
+          -s|--secret)
+	    TOPSECRET="${_key#*=}"
+	  ;;
           *)
             # Error on unknown options
             fail_out "Unknown option '${_key}'"
