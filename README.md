@@ -21,7 +21,7 @@ This code is primarly bash shell scripting, I thought about writing it in python
 ## Usage
 * When using for the first time you'll want to generate a symmetric key that will be used to encrypt the entires, this symmetric key is protected by your private gnuPG key. The resulting generated key that is encrypted is a 64 character ascii string that looks something like this:
 
-<pre>=<Koa2Rrer.kj"^Ul;+Xbq;HtNu5lU7A}`EiH,5T93|qd+k2.T*K;oAWr"4[U4Rb</pre>.
+<code>=<Koa2Rrer.kj"^Ul;+Xbq;HtNu5lU7A}`EiH,5T93|qd+k2.T*K;oAWr"4[U4Rb</code>.
 
 ```encrypt-draft newkey
 Where should we output the new key? Specify a location or type stdout to output to screen                                                                                                         [INFO]
