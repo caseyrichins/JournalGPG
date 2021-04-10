@@ -19,7 +19,9 @@ This code is primarly bash shell scripting, I thought about writing it in python
 * The entries you encrypt are protected with a random symmetric key that is generated and protected by your gpg key, the script uses they random key to encrypt the individual entires with AES-256 encryption and SHA-512 digests.
 
 ## Usage
-* When using for the first time you'll want to generate a symmetric key that will be used to encrypt the entires, this symmetric key is protected by your private gnuPG key. The resulting generated key that is encrypted is a 64 character ascii string that looks something like this <code>=<Koa2Rrer.kj"^Ul;+Xbq;HtNu5lU7A}`EiH,5T93|qd+k2.T*K;oAWr"4[U4Rb</code>.
+* When using for the first time you'll want to generate a symmetric key that will be used to encrypt the entires, this symmetric key is protected by your private gnuPG key. The resulting generated key that is encrypted is a 64 character ascii string that looks something like this:
+
+<pre>=<Koa2Rrer.kj"^Ul;+Xbq;HtNu5lU7A}`EiH,5T93|qd+k2.T*K;oAWr"4[U4Rb</pre>.
 
 ```encrypt-draft newkey
 Where should we output the new key? Specify a location or type stdout to output to screen                                                                                                         [INFO]
@@ -47,16 +49,23 @@ T6oIy9C/E4IzCFWYMd/9jJyWBn6hFoySAcGd1jk=
 Choose stdout if you don't want save your key to local file, otherwise provide the absolute path of where you want the key stored. You might even consider storing on a onion webserver or other personal web server using stdout option. Another option would be to burn the resulting file to a cd for immutability or copy to a usb drive to have the key remain sepereate from your computer. 
 
 * A new draft file for the current day by issuing `newdraft` command option. Make sure you're in the location where your journal will live, be that a local or external disk. 
+
 `encrypt-draft newdraft`
 
 * Encryption of your draft file once written is accomplished with the encrypt fuction and the passing of required options. Once the encryption has completed successfully the draft is erased.
+
 `encrypt-draft encrypt --keyfile /path/to/key.asc`
+
 If your key is stored on a personal webserver you may use the `--key-from-url` option, likewise if have Tor installed and your key is stored on a onion website add the `--proxy` option to command string.
+
 If your commands are being executed from outside your journal directory you must pass the `--config-path` option to specify the location your journal files.
 
 * Decryption of a entry to retrieve your memory or review your thoughts is simple and is accomplished via the `decrypt` function. For security the decrypted entry is only ever output to stdout or your screen and is never decrypted to a stored file.
+
 `encrypt-draft decrypt --keyfile /path/to/key.asc --entry 2021/February/Feb_04.asc`
+
 If your key is stored on a personal webserver you may use the `--key-from-url` option, likewise if have Tor installed and your key is stored on a onion website add the `--proxy` option to command string.
+
 If your commands are being executed from outside your journal directory you must pass the `--config-path` option to specify the location your journal files.
 
 ## Contributing
