@@ -79,13 +79,13 @@ GnuPG licence or its libraries.
 
 newDraft(){
 	safety_check
-	if [ -f $draftfile ];
+	if [ -f "$draftfile" ];
 	then
 		fail_out "Draft file aready exists"
 
 
 	else
-		echo $(date +%A%t%B%t%d%t%Y%n) > $draftfile 2>&1
+		echo "$(date +%A%t%B%t%d%t%Y%n)" > "$draftfile" 2>&1
 		success_msg "New draft completed successfully... Exiting"
 
 	fi
@@ -103,7 +103,7 @@ debug_msg "Current Backup Path: ${BACKUP_FP}"
 ## Check to see if ${CURRENT_FP} is set, if not set set ${BASE} to current path
 if [[ -z ${CURRENT_FP+x} ]]; then
 	BASE="$(pwd -P)"
-	[[ ! -z ${BASE} ]] || error_msg "Safety Check: Could not set BASE"
+	[[ -n ${BASE} ]] || error_msg "Safety Check: Could not set BASE"
 else
 	BASE=${CURRENT_FP}
 fi
@@ -111,7 +111,7 @@ fi
 ## Check to see if ${BACKUP_FP} is set, if not set ${BACKUP} to /backup
 if [[ -z ${BACKUP_FP+x} ]]; then
 	BACKUP="${HOME}/jbackup"
-	[[ ! -z ${BACKUP} ]] || error_msg "Safety Check: Could not set BACKUP path"
+	[[ -n ${BACKUP} ]] || error_msg "Safety Check: Could not set BACKUP path"
 else
 	BACKUP=${BACKUP_FP}
 fi
@@ -126,12 +126,12 @@ debug_msg "New Backup Path: ${BACKUP}"
 
 if [[ ! -d "${JOURNAL_BASE}" || ! -d "${BASE}/draft/" ]]; then
 	info_msg "Creating paths.."
-	mkdir -p ${BASE}/draft/ || error_msg "Safety Check: Failed to create DRAFT directory"
-	mkdir -p ${JOURNAL_BASE} || error_msg "Safety Check: Failed to create BASE directory"
+	mkdir -p "${BASE}"/draft/ || error_msg "Safety Check: Failed to create DRAFT directory"
+	mkdir -p "${JOURNAL_BASE}" || error_msg "Safety Check: Failed to create BASE directory"
 	stopped_msg "Try again"
 	exit 0
-elif [ -f $efile ]; then
-	if [ -s $efile ]; then
+elif [ -f "$efile" ]; then
+	if [ -s "$efile" ]; then
 		fail_out "Safety Check: Encrypted Journal exists and not empty"
 	else
 		error_msg "Saftey Check: Encrypted Journal exists but empty..."
@@ -146,15 +146,15 @@ fi
 
 encryptDraft(){
 	safety_check
-	debug_msg $draftfile
+	debug_msg "$draftfile"
 	info_msg "Formatting File"
-	if [ -f $draftfile ]; then
+	if [ -f "$draftfile" ]; then
 
 		doEncrypt
 	else
 		 error_msg "Today's Draft is missing, please check current path..."
 	fi
-	if [ ! -z "$(ls -A ${BASE}/draft/)" ]; then
+	if [ ! -z "$(ls -A "${BASE}"/draft/)" ]; then
 		warn_msg "Draft directory not empty!"
 		read -r -p "Would you like to encrypt old draft entries? [Y/n] " ans
 		case $ans in
@@ -177,7 +177,7 @@ shredSource(){
 	info_msg "Shredding Draft..."
        	if [[ -f $efile ]]
         then
-                shred -ufz -n 35 $draftfile || warn_msg "Could not complete shred operation"
+                shred -ufz -n 35 "$draftfile" || warn_msg "Could not complete shred operation"
                 success_msg "Shred action completed successfully"
         else
 		fail_out "Shred Action failed, please check previous encryption operation"
@@ -186,15 +186,15 @@ shredSource(){
 
 encryptOld() {
 	safety_check
-	for draft in $(ls -A ${CURRENT_FP}/draft/*.txt);
+	for draft in $(ls -A "${CURRENT_FP}"/draft/*.txt);
 	do
-		local date=echo $file |cut -f1 -d'.'
+		local date=echo "$file" |cut -f1 -d'.'
 		Year=`date -d "$date" +%Y`
 		Month=`date -d "$date" +%B`
 		Day=`date -d "$date" +%b_%d`
 		efile="${BASE}/$Year/$Month/$Day.asc"
 		if [[ ! -d ${BASE}/$Year/$Month ]]; then
-			mkdir -p ${BASE}/$Year/$Month || fail_out "Could not create path..."
+			mkdir -p "${BASE}"/"$Year"/"$Month" || fail_out "Could not create path..."
 		fi
 		doEncrypt
 	done
@@ -204,7 +204,7 @@ encryptOld() {
 
 doEncrypt(){
 	info_msg "Encrypting Entry..."
-	$(cat $draftfile | fold -s -w 72 | gpg2 -ac --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o $efile)
+	$(cat "$draftfile" | fold -s -w 72 | gpg2 -ac --batch "${SYMMETRIC_OPTIONS}" --pinentry-mode loopback --passphrase "${SECRET}" -o "$efile")
         info_msg "Journal entry successfully encrypted... "
 	## Possible at later time to add date/time check to ensure that the created file is actualy a new file, not old.
 	if [[ -f $efile && -s $efile ]]; then
@@ -216,8 +216,8 @@ doEncrypt(){
 	fi
 }
 
-randpw(){ < /dev/urandom tr -s -dc [:graph:] [:alnum:]| head -c${1:-64};echo;}
-
+randpw(){ < /dev/urandom tr -s -dc [:graph:] [:alnum:]| head -c"${1:-$(shuf -i 64-96 -n1)}";echo;}
+# Add random length for better deniability of knowing key ^ shuf -i 64-96 -n1
 newKey(){
 	secret=$(randpw)
 	info_msg "Where should we output the new key? Specify a location or type stdout to output to screen"
@@ -226,12 +226,12 @@ newKey(){
 	debug_msg "Generated Key is: $secret"
 	[[ $keylocation == /* || $keylocation == "stdout" ]] || fail_out "You did not give an absolute path, we are unable to resolve relative paths"
 	if [[ $keylocation == "stdout" ]]; then
-		echo $secret | gpg2 -ea -R $recipient -
+		echo "$secret" | gpg2 -ea -R "$recipient" -
 	else
-		local keyfile=$(readlink -f $keylocation)
+		local keyfile=$(readlink -f "$keylocation")
 		debug_msg "Keyfile: $keyfile"
 		[[ ! -z $keyfile ]] || error_msg "Keyfile path empty"
-		echo $secret | gpg2 -ea --batch -o $keyfile -R $recipient -
+		echo "$secret" | gpg2 -ea --batch -o "$keyfile" -R "$recipient" -
 
 		if [[ -f $keyfile ]]; then
 			success_msg "Secret Key successfully written to $keyfile"
@@ -258,7 +258,7 @@ decrypt(){
 	debug_msg "File Entry: ${ENTRY}"
 	debug_msg "Password: ${SECRET}"
 	# We print the entry with printf to stdout instead of decrypting to file for security of the entry
-	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" ${ENTRY})\n"
+	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" "${ENTRY}")\n"
 }
 
 backup(){
@@ -266,8 +266,8 @@ backup(){
 	warn_msg "Unit Tests for BACKUP Incomplete"
 	safety_check
 	local DIR="${BASE}/draft/"
-	local DSIZE=$(du -sh ${BASE})
-	if [ ! "$(ls -A $DIR)" ]; then
+	local DSIZE=$(du -sh "${BASE}")
+	if [ ! "$(ls -A "$DIR")" ]; then
 		info_msg "Backup of ${BASE} to ${BACKUP} in progress"
 		#tar -cvz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
 		local DVD_DEFAULT='n'
@@ -295,9 +295,9 @@ backup(){
 	fi
 }
 lastBackup(){
-	local newest=$(find ${BACKUP} -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
+	local newest=$(find "${BACKUP}" -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
 	if [[ ! -z ${newest} ]]; then
-	local last=$(date -r ${newest} +%s)
+	local last=$(date -r "${newest}" +%s)
 	local cur=$(date +%s)
 	local sub=$((${cur}-${last}))
 	local nxt=$((${cur}+1209600))
@@ -325,9 +325,9 @@ elif [[ -n ${KEY_URL} ]]; then
 	if [[ -n ${PROXY} && ${PROXY,,} == 'true' || ${PROXY,,} == 'yes' ]]; then
 		debug_msg "URL: ${KEY_URL}"
 		debug_msg "Proxy enabled: ${PROXY}"
-		SECRET=`curl -s --socks5-hostname '127.0.0.1:9050' ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=`curl -s --socks5-hostname '127.0.0.1:9050' "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]'`
 	else
-		SECRET=`curl -s ${KEY_URL} | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=`curl -s "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]'`
 	fi
 else
 	fail_out "Key option is required, specify key."
@@ -370,38 +370,38 @@ usage() {
 error_msg() {
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
-    printf "%${strlen}s %${cols}b" "$1" ${ERROR_SIG}
+    printf "%${strlen}s %${cols}b" "$1" "${ERROR_SIG}"
 }
 
 info_msg() {
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
-    printf "%${strlen}s %${cols}b" "$1" ${INFO_SIG}
+    printf "%${strlen}s %${cols}b" "$1" "${INFO_SIG}"
 }
 
 stopped_msg() {
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
-    printf "%${strlen}s %${cols}b" "$1" ${STOPPED_SIG}
+    printf "%${strlen}s %${cols}b" "$1" "${STOPPED_SIG}"
 }
 
 success_msg() {
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
-    printf "%${strlen}s %${cols}b" "$1" ${SUCCESS_SIG}
+    printf "%${strlen}s %${cols}b" "$1" "${SUCCESS_SIG}"
 }
 
 debug_msg(){
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
     if [[ ${DEBUG} == true ]]; then
-	    printf "%${strlen}s %${cols}b" "$1" ${DEBUG_SIG}
+	    printf "%${strlen}s %${cols}b" "$1" "${DEBUG_SIG}"
     fi
 }
 warn_msg(){
     strlen=${#1}
     cols=$((`tput cols` - $strlen))
-    printf "%${strlen}s %${cols}b" "$1" ${WARN_SIG}
+    printf "%${strlen}s %${cols}b" "$1" "${WARN_SIG}"
 }
 fail_out(){
     error_msg "$@"
