@@ -154,7 +154,7 @@ encryptDraft(){
 	else
 		 error_msg "Today's Draft is missing, please check current path..."
 	fi
-	if [ ! -z "$(ls -A "${BASE}"/draft/)" ]; then
+	if [ -n "$(ls -A "${BASE}"/draft/)" ]; then
 		warn_msg "Draft directory not empty!"
 		read -r -p "Would you like to encrypt old draft entries? [Y/n] " ans
 		case $ans in
@@ -230,7 +230,7 @@ newKey(){
 	else
 		local keyfile=$(readlink -f "$keylocation")
 		debug_msg "Keyfile: $keyfile"
-		[[ ! -z $keyfile ]] || error_msg "Keyfile path empty"
+		[[ -n $keyfile ]] || error_msg "Keyfile path empty"
 		echo "$secret" | gpg2 -ea --batch -o "$keyfile" -R "$recipient" -
 
 		if [[ -f $keyfile ]]; then
@@ -243,9 +243,9 @@ newKey(){
 
 encrypt(){
 	checkKey
-	if [[ ! -z $TYPE && $TYPE == "new" ]]; then
+	if [[ -n $TYPE && $TYPE == "new" ]]; then
 		encryptDraft
-	elif [[ ! -z $TYPE && $TYPE == "archive" ]]; then
+	elif [[ -n $TYPE && $TYPE == "archive" ]]; then
 		encryptOld
 	else
 		info_msg "No type specififed, assuming new"
@@ -296,7 +296,7 @@ backup(){
 }
 lastBackup(){
 	local newest=$(find "${BACKUP}" -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
-	if [[ ! -z ${newest} ]]; then
+	if [[ -n ${newest} ]]; then
 	local last=$(date -r "${newest}" +%s)
 	local cur=$(date +%s)
 	local sub=$((${cur}-${last}))
