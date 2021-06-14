@@ -85,7 +85,7 @@ newDraft(){
 
 
 	else
-		echo "$(date +%A%t%B%t%d%t%Y%n)" > "$draftfile" 2>&1
+		printf "$(date +%A%t%B%t%d%t%Y%n)\n\n" > "$draftfile" 2>&1
 		success_msg "New draft completed successfully... Exiting"
 
 	fi
