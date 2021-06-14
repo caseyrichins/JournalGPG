@@ -85,7 +85,7 @@ newDraft(){
 
 
 	else
-		printf "$(date +%A%t%B%t%d%t%Y%n)\n\n" > "$draftfile" 2>&1
+		printf "$(date +%A%t%B%t%d%t%Y%n)%s\n\n" > "$draftfile" 2>&1
 		success_msg "New draft completed successfully... Exiting"
 
 	fi
@@ -258,7 +258,7 @@ decrypt(){
 	debug_msg "File Entry: ${ENTRY}"
 	debug_msg "Password: ${SECRET}"
 	# We print the entry with printf to stdout instead of decrypting to file for security of the entry
-	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" "${ENTRY}")\n"
+	printf "$(gpg2 -dq --batch --pinentry-mode loopback --passphrase "${SECRET}" "${ENTRY}")%s\n"
 }
 
 backup(){
