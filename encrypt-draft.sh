@@ -189,9 +189,9 @@ encryptOld() {
 	for draft in $(ls -A "${CURRENT_FP}"/draft/*.txt);
 	do
 		local entrydate=echo "$file" |cut -f1 -d'.'
-		Year=`date -d "$entrydate" +%Y`
-		Month=`date -d "$entrydate" +%B`
-		Day=`date -d "$entrydate" +%b_%d`
+		Year=$(date -d "$entrydate" +%Y)
+		Month=$(date -d "$entrydate" +%B)
+		Day=$(date -d "$entrydate" +%b_%d)
 		efile="${BASE}/$Year/$Month/$Day.asc"
 		if [[ ! -d ${BASE}/$Year/$Month ]]; then
 			mkdir -p "${BASE}"/"$Year"/"$Month" || fail_out "Could not create path..."
@@ -320,14 +320,14 @@ fi
 checkKey(){
 is_secret
 if [[ -n ${KEYFILE} ]]; then
-	SECRET=`gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]'`
+	SECRET=$(gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]')
 elif [[ -n ${KEY_URL} ]]; then
 	if [[ -n ${PROXY} && ${PROXY,,} == 'true' || ${PROXY,,} == 'yes' ]]; then
 		debug_msg "URL: ${KEY_URL}"
 		debug_msg "Proxy enabled: ${PROXY}"
-		SECRET=`curl -s --socks5-hostname '127.0.0.1:9050' "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=$(curl -s --socks5-hostname '127.0.0.1:9050' "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]')
 	else
-		SECRET=`curl -s "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]'`
+		SECRET=$(curl -s "${KEY_URL}" | gpg2 -dq --batch - | tr -d '[:space:]')
 	fi
 else
 	fail_out "Key option is required, specify key."
@@ -369,38 +369,38 @@ usage() {
 
 error_msg() {
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     printf "%${strlen}s %${cols}b" "$1" "${ERROR_SIG}"
 }
 
 info_msg() {
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     printf "%${strlen}s %${cols}b" "$1" "${INFO_SIG}"
 }
 
 stopped_msg() {
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     printf "%${strlen}s %${cols}b" "$1" "${STOPPED_SIG}"
 }
 
 success_msg() {
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     printf "%${strlen}s %${cols}b" "$1" "${SUCCESS_SIG}"
 }
 
 debug_msg(){
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     if [[ ${DEBUG} == true ]]; then
 	    printf "%${strlen}s %${cols}b" "$1" "${DEBUG_SIG}"
     fi
 }
 warn_msg(){
     strlen=${#1}
-    cols=$((`tput cols` - $strlen))
+    cols=$(($(tput cols) - $strlen))
     printf "%${strlen}s %${cols}b" "$1" "${WARN_SIG}"
 }
 fail_out(){
