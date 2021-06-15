@@ -188,10 +188,10 @@ encryptOld() {
 	safety_check
 	for draft in $(ls -A "${CURRENT_FP}"/draft/*.txt);
 	do
-		local date=echo "$file" |cut -f1 -d'.'
-		Year=`date -d "$date" +%Y`
-		Month=`date -d "$date" +%B`
-		Day=`date -d "$date" +%b_%d`
+		local entrydate=echo "$file" |cut -f1 -d'.'
+		Year=`date -d "$entrydate" +%Y`
+		Month=`date -d "$entrydate" +%B`
+		Day=`date -d "$entrydate" +%b_%d`
 		efile="${BASE}/$Year/$Month/$Day.asc"
 		if [[ ! -d ${BASE}/$Year/$Month ]]; then
 			mkdir -p "${BASE}"/"$Year"/"$Month" || fail_out "Could not create path..."
