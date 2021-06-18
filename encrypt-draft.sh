@@ -188,7 +188,8 @@ encryptOld() {
 	safety_check
 	for draft in $(ls -A "${CURRENT_FP}"/draft/*.txt);
 	do
-		local entrydate=echo "$file" |cut -f1 -d'.'
+		local entrydate
+		entrydate=echo "$file" |cut -f1 -d'.'
 		Year=$(date -d "$entrydate" +%Y)
 		Month=$(date -d "$entrydate" +%B)
 		Day=$(date -d "$entrydate" +%b_%d)
@@ -204,7 +205,7 @@ encryptOld() {
 
 doEncrypt(){
 	info_msg "Encrypting Entry..."
-	$(cat "$draftfile" | fold -s -w 72 | gpg2 -ac --batch "${SYMMETRIC_OPTIONS}" --pinentry-mode loopback --passphrase "${SECRET}" -o "$efile")
+	$(cat "$draftfile" | fold -s -w 72 | gpg2 -ac --batch "${SYMMETRIC_OPTIONS}" --pinentry-mode loopback --passphrase "${SECRET}" -o "$efile") || error_msg "Encryption Failed"
         info_msg "Journal entry successfully encrypted... "
 	## Possible at later time to add date/time check to ensure that the created file is actualy a new file, not old.
 	if [[ -f $efile && -s $efile ]]; then
@@ -228,7 +229,8 @@ newKey(){
 	if [[ $keylocation == "stdout" ]]; then
 		echo "$secret" | gpg2 -ea -R "$recipient" -
 	else
-		local keyfile=$(readlink -f "$keylocation")
+		local keyfile
+		keyfile=$(readlink -f "$keylocation")
 		debug_msg "Keyfile: $keyfile"
 		[[ -n $keyfile ]] || error_msg "Keyfile path empty"
 		echo "$secret" | gpg2 -ea --batch -o "$keyfile" -R "$recipient" -
@@ -265,12 +267,15 @@ backup(){
 	checkKey
 	warn_msg "Unit Tests for BACKUP Incomplete"
 	safety_check
-	local DIR="${BASE}/draft/"
-	local DSIZE=$(du -sh "${BASE}")
+	local DIR
+	local DSIZE
+	DIR="${BASE}/draft/"
+	DSIZE=$(du -sh "${BASE}")
 	if [ ! "$(ls -A "$DIR")" ]; then
 		info_msg "Backup of ${BASE} to ${BACKUP} in progress"
 		#tar -cvz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
-		local DVD_DEFAULT='n'
+		local DVD_DEFAULT
+		DVD_DEFAULT='n'
 		read -e -p "Backup of ${BASE} complete, would you like to create an offline encrypted backup on CD/DVD? (n/Y)" DVD
 		local DVD=${DVD:-${DVD_DEFAULT}}
 		local DVD=${DVD,,}
@@ -295,12 +300,17 @@ backup(){
 	fi
 }
 lastBackup(){
-	local newest=$(find "${BACKUP}" -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
+	local newest
+	newest=$(find "${BACKUP}" -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
 	if [[ -n ${newest} ]]; then
-	local last=$(date -r "${newest}" +%s)
-	local cur=$(date +%s)
-	local sub=$((${cur}-${last}))
-	local nxt=$((${cur}+1209600))
+	local local
+	local cur
+	local sub
+	local nxt
+	last=$(date -r "${newest}" +%s)
+	cur=$(date +%s)
+	sub=$((${cur}-${last}))
+	nxt=$((${cur}+1209600))
 		if [[ ${sub} -ge 1209600 ]]; then
 			warn_msg "Last backup is older than TWO WEEKS! Run backup ASAP!!"
 		else
@@ -335,8 +345,9 @@ fi
 }
 checkPkgs(){
 	# Check that packages for dvd burning of encrypted iso are installed
-	local SUPPORTED=$(dpkg -s aespipe wodim genisoimage &> /dev/null)$?
-	#local SUPPORTED=$(yum -q aespipe wodim genisoimage &> /dev/null)$? ## Detection for Redhat Family
+	local SUPPORTED
+	SUPPORTED=$(dpkg -s aespipe wodim genisoimage &> /dev/null)$?
+	#SUPPORTED=$(yum -q aespipe wodim genisoimage &> /dev/null)$? ## Detection for Redhat Family
 	if [[ ! ${SUPPORTED} -eq 0 ]]; then
 		debug_msg "Supported Exit status: ${SUPPORTED}"
 		fail_out "Action not supportted, please install aespipe, genisoimage and wodim packages for your distribution"
