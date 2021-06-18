@@ -217,7 +217,7 @@ doEncrypt(){
 	fi
 }
 
-randpw(){ < /dev/urandom tr -s -dc [:graph:] [:alnum:]| head -c"${1:-$(shuf -i 64-96 -n1)}";echo;}
+randpw(){ < /dev/urandom tr -s -dc '[:graph:]' '[:alnum:]'| head -c"${1:-$(shuf -i 64-96 -n1)}";echo;}
 # Add random length for better deniability of knowing key ^ shuf -i 64-96 -n1
 newKey(){
 	secret=$(randpw)
