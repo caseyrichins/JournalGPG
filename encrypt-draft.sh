@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG=true
+DEBUG=false
 SYMMETRIC_OPTIONS="--no-symkey-cache --s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011700 --pinentry-mode loopback"
 USAGE="
 -- Encryption options --
@@ -12,6 +12,8 @@ USAGE="
                       --key-from-url: Supply a URL containing encrypted symetric key for decryption
                       --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
                                       Enabling this option allows use of tor hidden service urls.
+		      --secret      : Prompts user for answers to paremeters instead of requiring
+		                      them to input on command line to protect from bash history.
     encrypt   - Encrypts a given file using decrypted symetric key specified.
                       Optional flags:
 		      --type	    : Specify the type of journal entry to encrypt (new or archive)
@@ -23,6 +25,8 @@ USAGE="
                       --key-from-url: Supply a URL containing encrypted symetric key for decryption
                       --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
                                       Enabling this option allows use of tor hidden service urls.
+		      --secret      : Prompts user for answers to paremeters instead of requiring
+		                      them to input on command line to protect from bash history.
     backup    - Creates an encrypted backup archive
                       Optional flags:
                       --config_path : Supply a path to the journal root path if not already in current path
@@ -34,6 +38,8 @@ USAGE="
                       --key-from-url: Supply a URL containing encrypted symetric key for archive encryption
                       --proxy       : Should proxy via Tor be enabled for key-from-url operations? 
                                       Enabling this option allows use of tor hidden service urls.
+		      --secret      : Prompts user for answers to paremeters instead of requiring
+		                      them to input on command line to protect from bash history.
 
 -- Misc options --
     version    - Shows the script version
@@ -410,7 +416,7 @@ success_msg() {
 debug_msg(){
     strlen=${#1}
     cols=$(($(tput cols) - "${strlen}"))
-    if [[ ${DEBUG} == true ]]; then
+    if [[ ${DEBUG} == false ]]; then
 	    printf "%${strlen}s %${cols}b" "$1" "${DEBUG_SIG}"
     fi
 }
