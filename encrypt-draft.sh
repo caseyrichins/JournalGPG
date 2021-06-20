@@ -1,7 +1,7 @@
 #!/bin/bash
 
-DEBUG=false
-SYMMETRIC_OPTIONS="--no-symkey-cache --s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011700"
+DEBUG=true
+SYMMETRIC_OPTIONS="--no-symkey-cache --s2k-cipher-algo AES256 --s2k-digest-algo SHA512 --s2k-count 65011700 --pinentry-mode loopback"
 USAGE="
 -- Encryption options --
     decrypt   - Decrypt the given file using the specified keyfile and journal entry to stdout.
@@ -101,19 +101,19 @@ debug_msg "Current Path: ${JOURNAL_BASE}"
 debug_msg "Current Backup Path: ${BACKUP_FP}"
 
 ## Check to see if ${CURRENT_FP} is set, if not set set ${BASE} to current path
-if [[ -z ${CURRENT_FP+x} ]]; then
+if [[ -z "${CURRENT_FP+x}" ]]; then
 	BASE="$(pwd -P)"
-	[[ -n ${BASE} ]] || error_msg "Safety Check: Could not set BASE"
+	[[ -n "${BASE}" ]] || error_msg "Safety Check: Could not set BASE"
 else
-	BASE=${CURRENT_FP}
+	BASE="${CURRENT_FP}"
 fi
 
 ## Check to see if ${BACKUP_FP} is set, if not set ${BACKUP} to /backup
 if [[ -z ${BACKUP_FP+x} ]]; then
 	BACKUP="${HOME}/jbackup"
-	[[ -n ${BACKUP} ]] || error_msg "Safety Check: Could not set BACKUP path"
+	[[ -n "${BACKUP}" ]] || error_msg "Safety Check: Could not set BACKUP path"
 else
-	BACKUP=${BACKUP_FP}
+	BACKUP="${BACKUP_FP}"
 fi
 
 JOURNAL_BASE="${BASE}/$(date +%Y)/$(date +%B)"
@@ -186,17 +186,22 @@ shredSource(){
 
 encryptOld() {
 	safety_check
-	for draft in $(ls -A "${CURRENT_FP}"/draft/*.txt);
+	shopt -s globstar
+        for draft in "${BASE}"/draft/*.txt;
 	do
+		debug_msg "Current File: ${draft}"
+		[[ -e "${draft}" ]] || fail_out "Draft directory empty"
 		local entrydate
-		entrydate=echo "$file" |cut -f1 -d'.'
-		Year=$(date -d "$entrydate" +%Y)
-		Month=$(date -d "$entrydate" +%B)
-		Day=$(date -d "$entrydate" +%b_%d)
-		efile="${BASE}/$Year/$Month/$Day.asc"
-		if [[ ! -d ${BASE}/$Year/$Month ]]; then
-			mkdir -p "${BASE}"/"$Year"/"$Month" || fail_out "Could not create path..."
+		entrydate=$(echo "${draft}" |awk -F/ 'NF{ print $NF }'|cut -f1 -d'.')
+		Year=$(date -d "${entrydate}" +%Y)
+		Month=$(date -d "${entrydate}" +%B)
+		Day=$(date -d "${entrydate}" +%b_%d)
+		efile="${BASE}/${Year}/${Month}/${Day}.asc"
+		if [[ ! -d "${BASE}/${Year}/${Month}" ]]; then
+			mkdir -p "${BASE}/${Year}/${Month}" || fail_out "Could not create path..."
 		fi
+		local draftfile
+		draftfile="${draft}" || fail_out "Could not read draft"
 		doEncrypt
 	done
 	success_msg "Completed archive encryption operations"
@@ -204,26 +209,26 @@ encryptOld() {
 
 
 doEncrypt(){
-	info_msg "Encrypting Entry..."
-	$(cat "$draftfile" | fold -s -w 72 | gpg2 -ac --batch "${SYMMETRIC_OPTIONS}" --pinentry-mode loopback --passphrase "${SECRET}" -o "$efile") || error_msg "Encryption Failed"
-        info_msg "Journal entry successfully encrypted... "
+	info_msg "Encrypting Entry in ${draftfile} ..."
+        (fold -s -w 72 | gpg2 -ac --batch ${SYMMETRIC_OPTIONS} --passphrase "${SECRET}" -o "${efile}")< "${draftfile}" || error_msg "Encryption Failed"
+	info_msg "Journal entry successfully encrypted... "
 	## Possible at later time to add date/time check to ensure that the created file is actualy a new file, not old.
 	if [[ -f $efile && -s $efile ]]; then
 		shredSource || warn_message "Unable to complete shred action"
-	elif [[ -f $efile && ! -s $file ]]; then
+	elif [[ -f $efile && ! -s $efile ]]; then
 		fail_out "An error occured, encrypted journal is empty... "
 	else
 		fail_out "Encrypted Journal Entry currently exists, please verify destination path."
 	fi
 }
 
-randpw(){ < /dev/urandom tr -s -dc '[:graph:]' '[:alnum:]'| head -c"${1:-$(shuf -i 64-96 -n1)}";echo;}
+randpw(){ tr -s -dc '[:graph:]' '[:alnum:]' < /dev/urandom | head -c "${1:-$(shuf -i 64-96 -n1)}";echo;}
 # Add random length for better deniability of knowing key ^ shuf -i 64-96 -n1
 newKey(){
 	secret=$(randpw)
 	info_msg "Where should we output the new key? Specify a location or type stdout to output to screen"
-	read -p "Enter Absolute Path: " keylocation
-	read -p "Who is recipient of the key? " recipient
+	read -rp "Enter Absolute Path: " keylocation
+	read -rp "Who is recipient of the key? " recipient
 	debug_msg "Generated Key is: $secret"
 	[[ $keylocation == /* || $keylocation == "stdout" ]] || fail_out "You did not give an absolute path, we are unable to resolve relative paths"
 	if [[ $keylocation == "stdout" ]]; then
@@ -247,7 +252,7 @@ encrypt(){
 	checkKey
 	if [[ -n $TYPE && $TYPE == "new" ]]; then
 		encryptDraft
-	elif [[ -n $TYPE && $TYPE == "archive" ]]; then
+	elif [[ -n $TYPE && $TYPE == "archive" || $TYPE == "old" ]]; then
 		encryptOld
 	else
 		info_msg "No type specififed, assuming new"
@@ -276,7 +281,7 @@ backup(){
 		#tar -cvz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
 		local DVD_DEFAULT
 		DVD_DEFAULT='n'
-		read -e -p "Backup of ${BASE} complete, would you like to create an offline encrypted backup on CD/DVD? (n/Y)" DVD
+		read -e -rp "Backup of ${BASE} complete, would you like to create an offline encrypted backup on CD/DVD? (n/Y)" DVD
 		local DVD=${DVD:-${DVD_DEFAULT}}
 		local DVD=${DVD,,}
 		debug_msg "Burn DVD: ${DVD}"
@@ -296,21 +301,21 @@ backup(){
 		fi
 		
 	else
-		fail_out "Take action $DIR is not Empty"
+		fail_out "Take action ${DIR} is not Empty"
 	fi
 }
 lastBackup(){
 	local newest
 	newest=$(find "${BACKUP}" -type f -printf "%T@ %p\n" | sort -n | cut -d' ' -f 2- | tail -n 1)
 	if [[ -n ${newest} ]]; then
-	local local
+	local last
 	local cur
 	local sub
 	local nxt
 	last=$(date -r "${newest}" +%s)
 	cur=$(date +%s)
-	sub=$((${cur}-${last}))
-	nxt=$((${cur}+1209600))
+	sub=$((cur-last))
+	nxt=$((cur+1209600))
 		if [[ ${sub} -ge 1209600 ]]; then
 			warn_msg "Last backup is older than TWO WEEKS! Run backup ASAP!!"
 		else
@@ -322,7 +327,7 @@ lastBackup(){
 }
 is_secret(){
 if [[ -n ${TOPSECRET} && ${TOPSECRET,,} == 'true' && -z ${KEY_URL} ]]; then
-	read -e -p "Please type the URL you'd like to keep secret: " URL
+	read -r -e -p "Please type the URL you'd like to keep secret: " URL
         KEY_URL=$URL
 	debug_msg "Secret URL: ${KEY_URL}"
 fi
@@ -380,38 +385,38 @@ usage() {
 
 error_msg() {
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     printf "%${strlen}s %${cols}b" "$1" "${ERROR_SIG}"
 }
 
 info_msg() {
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     printf "%${strlen}s %${cols}b" "$1" "${INFO_SIG}"
 }
 
 stopped_msg() {
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     printf "%${strlen}s %${cols}b" "$1" "${STOPPED_SIG}"
 }
 
 success_msg() {
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     printf "%${strlen}s %${cols}b" "$1" "${SUCCESS_SIG}"
 }
 
 debug_msg(){
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     if [[ ${DEBUG} == true ]]; then
 	    printf "%${strlen}s %${cols}b" "$1" "${DEBUG_SIG}"
     fi
 }
 warn_msg(){
     strlen=${#1}
-    cols=$(($(tput cols) - $strlen))
+    cols=$(($(tput cols) - "${strlen}"))
     printf "%${strlen}s %${cols}b" "$1" "${WARN_SIG}"
 }
 fail_out(){
@@ -426,9 +431,16 @@ check_uid() {
 ### ARGUMENTS ###
 handle_args(){
 
-  #: The first argument is the operation being performed (e.g. install, uninstall, or reinstall).
-  local _op=$1
-  shift
+###  Possible Use later, save for posterity and future use.
+###  #: The first argument is the operation being performed (e.g. encrypt, decrypt, or backup).
+###  local _op=$1
+###  shift
+###
+###  #: 2.x agents read a cached agent ID from bootstrap.cfg - by reusing this file, we can reuse previous agent ID.
+###  if [ "$_op" == "reinstall" ] || [ "$_op" == "reinstall_start" ]; then
+###      REUSE_BOOTSTRAP_CFG=true
+###  fi
+
 
   # As long as there is at least one more argument, keep looping
   while [[ $# -gt 0 ]]; do
@@ -466,7 +478,7 @@ handle_args(){
             shift
 	    BACKUP_FP="$1"
 	  ;;
-          -b|--backup_path)
+          -b=*|--backup_path=*)
             BACKUP_FP="${_key#*=}"
 	  ;;
 	  -e|--entry)
@@ -481,13 +493,13 @@ handle_args(){
             PROXY="true"
           ;;
           -p=*|--proxy=*)
-            PROXY="${_key#*=}"
-          ;;
+	    PROXY="${_key#*=}"
+	  ;;
           -s|--secret)
 	    shift
 	    TOPSECRET="true"
 	  ;;
-          -s|--secret)
+          -s=*|--secret=*)
 	    TOPSECRET="${_key#*=}"
 	  ;;
           *)
@@ -531,6 +543,9 @@ case "$1" in
         ;;
     newdraft)
 	newDraft
+	;;
+    backupstatus)
+	lastBackup
 	;;
     help)
         usage
