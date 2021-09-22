@@ -437,10 +437,10 @@ check_uid() {
 ### ARGUMENTS ###
 handle_args(){
 
-###  Possible Use later, save for posterity and future use.
-###  #: The first argument is the operation being performed (e.g. encrypt, decrypt, or backup).
-###  local _op=$1
-###  shift
+#Possible Use later, save for posterity and future use.
+#: The first argument is the operation being performed (e.g. encrypt, decrypt, or backup).
+local _op=$1
+shift
 ###
 ###  #: 2.x agents read a cached agent ID from bootstrap.cfg - by reusing this file, we can reuse previous agent ID.
 ###  if [ "$_op" == "reinstall" ] || [ "$_op" == "reinstall_start" ]; then
