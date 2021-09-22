@@ -416,7 +416,7 @@ success_msg() {
 debug_msg(){
     strlen=${#1}
     cols=$(($(tput cols) - "${strlen}"))
-    if [[ ${DEBUG} == false ]]; then
+    if [[ ${DEBUG} != false ]]; then
 	    printf "%${strlen}s %${cols}b" "$1" "${DEBUG_SIG}"
     fi
 }
