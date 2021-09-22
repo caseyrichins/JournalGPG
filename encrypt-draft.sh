@@ -129,25 +129,31 @@ draftfile="${BASE}/draft/$(date +%F).txt"
 debug_msg "New Base Path: ${BASE}"
 debug_msg "New Current Path: ${JOURNAL_BASE}"
 debug_msg "New Backup Path: ${BACKUP}"
-
-if [[ ! -d "${JOURNAL_BASE}" || ! -d "${BASE}/draft/" ]]; then
-	info_msg "Creating paths.."
-	mkdir -p "${BASE}"/draft/ || error_msg "Safety Check: Failed to create DRAFT directory"
-	mkdir -p "${JOURNAL_BASE}" || error_msg "Safety Check: Failed to create BASE directory"
-	stopped_msg "Try again"
-	exit 0
-elif [ -f "$efile" ]; then
-	if [ -s "$efile" ]; then
-		fail_out "Safety Check: Encrypted Journal exists and not empty"
-	else
-		error_msg "Saftey Check: Encrypted Journal exists but empty..."
-		exit 2;
-	fi
+debug_msg "Script Option Command is $_op"
+if [[ -n "${DISABLE_SAFETY_CHECK_CFG}" && ${DISABLE_SAFETY_CHECK_CFG} == "true" ]]; then
+	info_msg "Skipping file safety checks"
 else
-	info_msg "Safey Checks passed, continuing..."
-	lastBackup
-	return 0
+	if [[ ! -d "${JOURNAL_BASE}" || ! -d "${BASE}/draft/" ]]; then
+		info_msg "Creating paths.."
+		mkdir -p "${BASE}"/draft/ || error_msg "Safety Check: Failed to create DRAFT directory"
+		mkdir -p "${JOURNAL_BASE}" || error_msg "Safety Check: Failed to create BASE directory"
+		stopped_msg "Try again"
+		exit 0
+	elif [[ -f "$efile" && $TYPE != "new" ]]; then
+		if [ -s "$efile" ]; then
+			debug_msg "Encrypted destination will be $efile"
+			fail_out "Safety Check: Encrypted Journal exists and not empty"
+		else
+			error_msg "Saftey Check: Encrypted Journal exists but empty..."
+			exit 2;
+		fi
+	else
+		info_msg "Safey Checks passed, continuing..."
+		lastBackup
+		return 0
+	fi
 fi
+
 }
 
 encryptDraft(){
@@ -443,9 +449,9 @@ local _op=$1
 shift
 ###
 ###  #: 2.x agents read a cached agent ID from bootstrap.cfg - by reusing this file, we can reuse previous agent ID.
-###  if [ "$_op" == "reinstall" ] || [ "$_op" == "reinstall_start" ]; then
-###      REUSE_BOOTSTRAP_CFG=true
-###  fi
+if [ "$_op" == "backup" ] || [ "$_op" == "backupstatus" ]; then
+	DISABLE_SAFETY_CHECK_CFG=true
+fi
 
 
   # As long as there is at least one more argument, keep looping
