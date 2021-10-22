@@ -234,7 +234,10 @@ doEncrypt(){
 	fi
 }
 
-randpw(){ tr -s -dc '[:graph:]' '[:alnum:]' < /dev/urandom | head -c "${1:-$(shuf -i 64-96 -n1)}";echo;}
+randpw(){ tr -s -dc '[:alnum:]' '[:alnum:]' < /dev/urandom | head -c "${1:-$(shuf -i 64-96 -n1)}";echo;}
+
+V3SecretKey(){ head -c 3705 /dev/random | uuencode -m - | head -n 66 | tail -n 65;echo; }
+
 # Add random length for better deniability of knowing key ^ shuf -i 64-96 -n1
 newKey(){
 	secret=$(randpw)
@@ -260,6 +263,29 @@ newKey(){
 	fi
 }
 
+newBackupKey(){
+	info_msg "Where should we output the new key? Specify a location or type stdout to output to screen"
+        read -rp "Enter Absolute Path: " keylocation
+        #read -rp "Who is recipient of the key? " recipient
+
+	[[ $keylocation == /* || $keylocation == "stdout" ]] || fail_out "You did not give an absolute path, we are unable to resolve relative paths"
+        if [[ $keylocation == "stdout" ]]; then
+		printf "%s" "$(V3SecretKey)" | gpg2 -ca ${SYMMETRIC_OPTIONS} - || fail_out "Unable to complete encryption of generated key"
+        else
+                bkeyfile=$(readlink -f "$keylocation")
+                debug_msg "Keyfile: $bkeyfile"
+		#debug_msg "Recipient: $recipient"
+                [[ -n $bkeyfile ]] || error_msg "Keyfile path empty"
+		printf "%s" "$(V3SecretKey)" | gpg2 -ca ${SYMMETRIC_OPTIONS} -o "${bkeyfile}" - || fail_out "Unable to complete encryption of generated key"
+
+		if [[ -f $bkeyfile ]]; then
+                        success_msg "Secret Key successfully written to $bkeyfile"
+                else
+                        error_msg "Unable to write secret to file."
+                fi
+	fi
+
+}
 encrypt(){
 	checkKey
 	if [[ -n $TYPE && $TYPE == "new" ]]; then
@@ -281,6 +307,7 @@ decrypt(){
 }
 
 backup(){
+	trap 'find ${TMPDIR} -type f -exec shred -ufz -n 35 {} \; && rmdir ${TMPDIR}' EXIT
 	checkKey
 	warn_msg "Unit Tests for BACKUP Incomplete"
 	safety_check
@@ -290,7 +317,8 @@ backup(){
 	DSIZE=$(du -sh "${BASE}")
 	if [ ! "$(ls -A "$DIR")" ]; then
 		info_msg "Backup of ${BASE} to ${BACKUP} in progress"
-		#tar -cvz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
+		#tar -cfz ${BASE} | gpg2 -b -c --batch ${SYMMETRIC_OPTIONS} --pinentry-mode loopback --passphrase ${SECRET} -o ${BACKUP}/backup.tgz.gpg
+		tar -cfz "${BASE}"| bzip2 | aespipe -w 10 -e aes256 -H sha512 -K "${KEYFILE}" > ${BACKUP}/backup_$(date +%F)_enc.tar.bz2
 		local DVD_DEFAULT
 		DVD_DEFAULT='n'
 		read -e -rp "Backup of ${BASE} complete, would you like to create an offline encrypted backup on CD/DVD? (n/Y)" DVD
@@ -299,14 +327,18 @@ backup(){
 		debug_msg "Burn DVD: ${DVD}"
 		if [[ ${DVD} == 'y' || ${DVD} == 'yes' ]]; then
 			checkPkgs
-			info_msg "Please insert a CD or DVD in drive before prceeding. Press enter to continue"
+			info_msg "Please insert a CD or DVD in drive before prceeding."
 			info_msg "Estimated Size is ${DSIZE}"
-			#wait here for key press of DVD.
+			#Check if space is free to write image to temp space
+			read -rp "Press any key to continue... " -n1 -s
 			info_msg "Writing data in ${BASE} to disk, please wait"
-			#TMPDIR=$(mktemp -d)
-			#genisoimage -quiet -r Documents/ | aespipe -e aes256 -H sha512 > $TMPDIR/documents.iso
-			#wodim dev=/dev/dvdrw documents.iso
-			#shred -ufvz -n 35 $TMPDIR/documents.iso
+			TMPDIR=$(mktemp -d)
+			debug_msg "Our Temporary Path is: $TMPDIR"
+			genisoimage -quiet -r "${BASE}" | aespipe -w 5 -e aes256 -H sha512 -K "${KEYFILE}" > ${BACKUP}/documents_enc.iso
+			#wodim dev=/dev/dvdrw ${TMPDIR}/documents.iso || fail_out "Unable to burn image to disk, please try again"
+			#shred -ufvz -n 35 ${TMPDIR}/documents.iso || fail_out "Unable to complete shred action, please verify file deletion."
+			#rm -rf $TMPDIR || fail_out "We could not remove the temproary directory, you should consider manually removing"
+			info_msg "Backup file written to ${BACKUP}"
 		else
 			info_msg "Backup complete, have a nice day!"
 			exit 0
@@ -346,7 +378,7 @@ fi
 }
 checkKey(){
 is_secret
-if [[ -n ${KEYFILE} ]]; then
+if [[ -n ${KEYFILE} && ${DISABLE_SAFETY_CHECK_CFG} != "true" ]]; then
 	SECRET=$(gpg2 -dq --batch "${KEYFILE}" | tr -d '[:space:]')
 elif [[ -n ${KEY_URL} ]]; then
 	if [[ -n ${PROXY} && ${PROXY,,} == 'true' || ${PROXY,,} == 'yes' ]]; then
@@ -553,6 +585,9 @@ case "$1" in
     newkey)
 	newKey
         ;;
+    newbackupkey)
+	newBackupKey
+	;;
     newdraft)
 	newDraft
 	;;
